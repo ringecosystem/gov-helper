@@ -27,9 +27,9 @@ jobs:
       - name: Check Issue Body Format
         id: check-body
         if: steps.check-title.outputs.is-gov-issue == 'true'
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
-
           # Handle empty issue body
           if [[ -z "$ISSUE_BODY" ]]; then
             echo "has-valid-body=false" >> $GITHUB_OUTPUT
