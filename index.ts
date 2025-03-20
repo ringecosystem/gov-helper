@@ -22,7 +22,7 @@ async function main(): Promise<void> {
 
   console.log(`connecting to ${wssUri}`);
 
-  const connectionPromise = ApiPromise.create({ provider });
+  const connectionPromise = ApiPromise.create({ provider, noInitWarn: true });
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error('connection timeout after 5 secs')), 5_000);
   });
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     api.rpc.system.version()
   ]);
 
-  console.log(`connected to ${chain} using ${nodeName} v${nodeVersion}`);
+  console.log(`connected to ${chain} at ${nodeName}-v${nodeVersion}`);
 
   const header = await api.rpc.chain.getHeader();
 
@@ -102,8 +102,8 @@ async function main(): Promise<void> {
   console.log(`proxyReferendaProposal call data: ${proxyReferendaPRoposal.method.toHex()}`);
   console.log(`proxyReferendaProposal hash: ${proxyReferendaPRoposal.method.hash.toHex()}`);
 
-  await signAndSendTx(pair, proxyTechCommProposal);
-  await signAndSendTx(pair, proxyReferendaPRoposal);
+  await signAndSendTx(pair, proxyTechCommProposal, wssUri);
+  await signAndSendTx(pair, proxyReferendaPRoposal, wssUri);
   await api.disconnect();
 
   console.log('disconnected from node');
@@ -139,7 +139,7 @@ function blake2b256(buffer: Buffer): string {
   return blake2AsHex(buffer, 256);
 }
 
-async function signAndSendTx(pair: KeyringPair, tx: any): Promise<void> {
+async function signAndSendTx(pair: KeyringPair, tx: any, wssUri?: string): Promise<void> {
   console.log(`signing and sending tx: ${tx.method.section}.${tx.method.method}`);
 
   return new Promise((resolve, reject) => {
@@ -149,7 +149,16 @@ async function signAndSendTx(pair: KeyringPair, tx: any): Promise<void> {
       console.log(`tx status: ${status.type}`);
 
       if (status.isInBlock || status.isFinalized) {
-        console.log(`tx included in block: ${status.asInBlock.toHex()}`);
+        const blockHash = status.isInBlock ? status.asInBlock : status.asFinalized;
+        const blockHashHex = blockHash.toHex();
+
+        console.log(`tx included in block: ${blockHashHex}`);
+
+        if (wssUri) {
+          const explorerUri = `https://polkadot.js.org/apps/?rpc=${wssUri}#/explorer/query/${blockHashHex}`;
+
+          console.log(`Block Explorer URL: ${explorerUri}`);
+        }
 
         resolve();
       } else if (status.isError) {
