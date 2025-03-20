@@ -4,8 +4,9 @@ A utility project to interact with Polkadot-SDK governance features on Darwinia/
 
 ## Usage
 
-1. Set `GOV_PROXY_KEY` in this repository's secrets. This key is used to sign the transaction on behalf of the governance proxy account.
-2. Creating a new issue on this repository, prefix the title with `[GOV]`, and ensure that the first two lines of the body are as follows:
+1. Set the qualified members in the `AUTHORIZED_AUTHORS=` section of the workflow file. This will prevent other users' issues from being processed.
+2. Set `GOV_PROXY_KEY` in this repository's secrets. This key is used to sign the transaction on behalf of the governance proxy account.
+3. Creating a new issue on this repository, prefix the title with `[GOV]`, and ensure that the first two lines of the body are as follows:
 
     ```plain
     <WSS-URI>  # wss://rpc.darwinia.network
