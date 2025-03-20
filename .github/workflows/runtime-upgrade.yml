@@ -9,6 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       is-gov-issue: ${{ steps.check-title.outputs.is-gov-issue }}
+      has-valid-body: ${{ steps.check-body.outputs.has-valid-body }}
+      wss-uri: ${{ steps.check-body.outputs.wss-uri }}
+      code-uri: ${{ steps.check-body.outputs.code-uri }}
+      error-message: ${{ steps.check-body.outputs.error-message }}
     steps:
       - name: Check if Issue Title Starts with [GOV]
         id: check-title
@@ -19,6 +23,33 @@ jobs:
           else
             echo "is-gov-issue=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Check Issue Body Format
+        id: check-body
+        if: steps.check-title.outputs.is-gov-issue == 'true'
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+
+          # Handle empty issue body
+          if [[ -z "$ISSUE_BODY" ]]; then
+            echo "has-valid-body=false" >> $GITHUB_OUTPUT
+            echo "error-message=Issue body is empty. Please provide WSS URI on the first line and code URI on the second line." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          WSS_URI=$(echo "$ISSUE_BODY" | sed -n '1p')
+          CODE_URI=$(echo "$ISSUE_BODY" | sed -n '2p')
+
+          # Validate URIs (basic check)
+          if [[ -z "$WSS_URI" || -z "$CODE_URI" ]]; then
+            echo "has-valid-body=false" >> $GITHUB_OUTPUT
+            echo "error-message=Invalid format. Issue must contain WSS URI on first line and code URI on second line." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has-valid-body=true" >> $GITHUB_OUTPUT
+          echo "wss-uri=${WSS_URI}" >> $GITHUB_OUTPUT
+          echo "code-uri=${CODE_URI}" >> $GITHUB_OUTPUT
 
   check-author:
     needs: check-issue
@@ -61,27 +92,28 @@ jobs:
           reactions: "+1, rocket"
           body: "Processing runtime upgrade proposal..."
 
+      - name: Report Invalid Body Format
+        if: steps.check-author.outputs.authorized == 'true' && needs.check-issue.outputs.has-valid-body != 'true'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ## Runtime Upgrade Proposal Failed
+
+            Error: ${{ needs.check-issue.outputs.error-message }}
+
+            Please fix the issue and try again.
+
+            Status: ❌ Failed
+
   process-upgrade-proposal:
     needs: [check-issue, check-author]
-    if: needs.check-issue.outputs.is-gov-issue == 'true' && needs.check-author.outputs.authorized == 'true'
+    if: >
+      needs.check-issue.outputs.is-gov-issue == 'true' &&
+      needs.check-author.outputs.authorized == 'true' &&
+      needs.check-issue.outputs.has-valid-body == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Extract URIs
-        id: extract-uris
-        run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
-          WSS_URI=$(echo "$ISSUE_BODY" | sed -n '1p')
-          CODE_URI=$(echo "$ISSUE_BODY" | sed -n '2p')
-
-          # Validate URIs (basic check)
-          if [[ -z "$WSS_URI" || -z "$CODE_URI" ]]; then
-            echo "Invalid format: Issue must contain WSS URI on first line and code URI on second line" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          echo "wss-uri=${WSS_URI}" >> $GITHUB_OUTPUT
-          echo "code-uri=${CODE_URI}" >> $GITHUB_OUTPUT
-
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -108,15 +140,21 @@ jobs:
           GOV_PROXY_KEY: ${{ secrets.GOV_PROXY_KEY }}
         run: |
           set -o pipefail
-          OUTPUT=$(yarn build && yarn start "${{ steps.extract-uris.outputs.wss-uri }}" "${{ steps.extract-uris.outputs.code-uri }}" 2>&1) || EXIT_CODE=$?
-          echo "exit-code=${EXIT_CODE:-0}" >> $GITHUB_OUTPUT
+          OUTPUT=$(yarn build && yarn start "${{ needs.check-issue.outputs.wss-uri }}" "${{ needs.check-issue.outputs.code-uri }}" 2>&1) || {
+            EXIT_CODE=$?
+            echo "exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
+            echo "script-output<<EOF" >> $GITHUB_OUTPUT
+            echo "$OUTPUT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 0
+          }
+          echo "exit-code=0" >> $GITHUB_OUTPUT
           echo "script-output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Reply with results
         uses: peter-evans/create-or-update-comment@v3
-        if: always()
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
