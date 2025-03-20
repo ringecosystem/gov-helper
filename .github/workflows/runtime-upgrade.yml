@@ -16,8 +16,9 @@ jobs:
     steps:
       - name: Check if Issue Title Starts with [GOV]
         id: check-title
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
-          ISSUE_TITLE="${{ github.event.issue.title }}"
           if [[ "$ISSUE_TITLE" == \[GOV\]* ]]; then
             echo "is-gov-issue=true" >> $GITHUB_OUTPUT
           else
@@ -27,9 +28,9 @@ jobs:
       - name: Check Issue Body Format
         id: check-body
         if: steps.check-title.outputs.is-gov-issue == 'true'
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          ISSUE_BODY="${{ github.event.issue.body }}"
-
           # Handle empty issue body
           if [[ -z "$ISSUE_BODY" ]]; then
             echo "has-valid-body=false" >> $GITHUB_OUTPUT
