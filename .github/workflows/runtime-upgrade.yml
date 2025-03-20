@@ -75,8 +75,20 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          reactions: confused
           body: "Sorry, only authorized team members can create runtime upgrade proposals."
+
+      - name: Add Confused Reaction to Unauthorized Issue
+        if: steps.check-author.outputs.authorized == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              content: 'confused'
+            });
 
       - name: Close Unauthorized Issue
         if: steps.check-author.outputs.authorized == 'false'
@@ -89,8 +101,29 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          reactions: "+1, rocket"
           body: "Processing runtime upgrade proposal..."
+
+      - name: Add Positive Reactions to Authorized Issue
+        if: steps.check-author.outputs.authorized == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Add +1 reaction
+            await github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              content: '+1'
+            });
+
+            // Add rocket reaction
+            await github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              content: 'rocket'
+            });
 
       - name: Report Invalid Body Format
         if: steps.check-author.outputs.authorized == 'true' && needs.check-issue.outputs.has-valid-body != 'true'
