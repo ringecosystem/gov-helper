@@ -84,8 +84,26 @@ async function main(): Promise<void> {
   console.log(`referendaProposal call data: ${referendaProposal.method.toHex()}`);
   console.log(`referendaProposal hash: ${referendaProposal.method.hash.toHex()}`);
 
-  await signAndSendTx(pair, techCommProposal);
-  await signAndSendTx(pair, referendaProposal);
+  const proxyTechCommProposal = api.tx.proxy.proxy(
+    '0x3e25247CfF03F99a7D83b28F207112234feE73a6',
+    { Governance: null },
+    techCommProposal
+  );
+
+  console.log(`proxyTechCommProposal call data: ${proxyTechCommProposal.method.toHex()}`);
+  console.log(`proxyTechCommProposal hash: ${proxyTechCommProposal.method.hash.toHex()}`);
+
+  const proxyReferendaPRoposal = api.tx.proxy.proxy(
+    '0x3e25247CfF03F99a7D83b28F207112234feE73a6',
+    { Governance: null },
+    referendaProposal
+  );
+
+  console.log(`proxyReferendaProposal call data: ${proxyReferendaPRoposal.method.toHex()}`);
+  console.log(`proxyReferendaProposal hash: ${proxyReferendaPRoposal.method.hash.toHex()}`);
+
+  await signAndSendTx(pair, proxyTechCommProposal);
+  await signAndSendTx(pair, proxyReferendaPRoposal);
   await api.disconnect();
 
   console.log('disconnected from node');
