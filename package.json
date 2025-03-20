@@ -1,0 +1,25 @@
+{
+  "name": "gov-helper",
+  "version": "0.1.0",
+  "description": "Polkadot.js governance helper",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@polkadot/api": "^15.8.1",
+    "@polkadot/keyring": "^13.4.3",
+    "@polkadot/util": "^13.4.3",
+    "@polkadot/util-crypto": "^13.4.3",
+    "axios": "^1.6.7"
+  }
+}

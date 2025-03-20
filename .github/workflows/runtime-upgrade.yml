@@ -1,0 +1,136 @@
+name: Runtime Upgrade Proposal
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  check-issue:
+    runs-on: ubuntu-latest
+    outputs:
+      is-gov-issue: ${{ steps.check-title.outputs.is-gov-issue }}
+    steps:
+      - name: Check if Issue Title Starts with [GOV]
+        id: check-title
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          if [[ "$ISSUE_TITLE" == \[GOV\]* ]]; then
+            echo "is-gov-issue=true" >> $GITHUB_OUTPUT
+          else
+            echo "is-gov-issue=false" >> $GITHUB_OUTPUT
+          fi
+
+  check-author:
+    needs: check-issue
+    if: needs.check-issue.outputs.is-gov-issue == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.check-author.outputs.authorized }}
+    steps:
+      - name: Check Issue Author
+        id: check-author
+        run: |
+          AUTHORIZED_AUTHORS=("aurexav" "boundless-forest" "hackfisher")
+          ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
+
+          if [[ " ${AUTHORIZED_AUTHORS[*]} " =~ " ${ISSUE_AUTHOR} " ]]; then
+            echo "authorized=true" >> $GITHUB_OUTPUT
+          else
+            echo "authorized=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: React to Unauthorized Issue
+        if: steps.check-author.outputs.authorized == 'false'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          reactions: confused
+          body: "Sorry, only authorized team members can create runtime upgrade proposals."
+
+      - name: Close Unauthorized Issue
+        if: steps.check-author.outputs.authorized == 'false'
+        uses: peter-evans/close-issue@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+
+      - name: React to Authorized Issue
+        if: steps.check-author.outputs.authorized == 'true'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          reactions: "+1, rocket"
+          body: "Processing runtime upgrade proposal..."
+
+  process-upgrade-proposal:
+    needs: [check-issue, check-author]
+    if: needs.check-issue.outputs.is-gov-issue == 'true' && needs.check-author.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract URIs
+        id: extract-uris
+        run: |
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          WSS_URI=$(echo "$ISSUE_BODY" | sed -n '1p')
+          CODE_URI=$(echo "$ISSUE_BODY" | sed -n '2p')
+
+          # Validate URIs (basic check)
+          if [[ -z "$WSS_URI" || -z "$CODE_URI" ]]; then
+            echo "Invalid format: Issue must contain WSS URI on first line and code URI on second line" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "wss-uri=${WSS_URI}" >> $GITHUB_OUTPUT
+          echo "code-uri=${CODE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check for required secrets
+        run: |
+          if [[ -z "${{ secrets.GOV_PROXY_KEY }}" ]]; then
+            echo "Error: GOV_PROXY_KEY secret is not set in this repository" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '23.1'
+          cache: 'yarn'
+          check-latest: true
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Run upgrade proposal script
+        id: run-script
+        env:
+          GOV_PROXY_KEY: ${{ secrets.GOV_PROXY_KEY }}
+        run: |
+          set -o pipefail
+          OUTPUT=$(yarn build && yarn start "${{ steps.extract-uris.outputs.wss-uri }}" "${{ steps.extract-uris.outputs.code-uri }}" 2>&1) || EXIT_CODE=$?
+          echo "exit-code=${EXIT_CODE:-0}" >> $GITHUB_OUTPUT
+          echo "script-output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Reply with results
+        uses: peter-evans/create-or-update-comment@v3
+        if: always()
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ## Runtime Upgrade Proposal Results
+
+            ```
+            ${{ steps.run-script.outputs.script-output || 'Script execution failed. See workflow logs for details.' }}
+            ```
+
+            Status: ${{ steps.run-script.outputs.exit-code == '0' && '✅ Success' || '❌ Failed' }}
+
+      - name: Close issue on success
+        if: steps.run-script.outputs.exit-code == '0'
+        uses: peter-evans/close-issue@v3
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment: "Runtime upgrade proposal has been successfully processed. This issue is now closed."

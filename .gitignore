@@ -1,0 +1,15 @@
+# Integrated development environment.
+.vscode
+
+# Package manager.
+## Cargo.
+target
+## NPM.
+dist
+node_modules
+
+# System.
+.DS_Store
+
+# Test data.
+tmp
