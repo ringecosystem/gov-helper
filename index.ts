@@ -157,14 +157,17 @@ async function connectToNode(wssUri: string): Promise<ApiPromise> {
       api.rpc.system.name(),
       api.rpc.system.version()
     ]);
+
     console.log(`connected to ${chain} at ${nodeName}-v${nodeVersion}`);
 
     const header = await api.rpc.chain.getHeader();
+
     console.log(`latest block: #${header.number} ${header.hash}`);
 
     return api;
   } catch (e: any) {
     console.error(`failed to connect to node: ${e.message}`);
+
     throw new Error(`connection failed: ${e.message}`);
   }
 }
