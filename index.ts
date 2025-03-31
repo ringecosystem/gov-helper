@@ -52,10 +52,14 @@ class RawCallGenerator implements CallGenerator {
   }
 
   async generate(api: ApiPromise): Promise<any> {
-    console.log(`Using raw call data: ${this.callData}`);
+    console.log(`using raw call data: ${this.callData}`);
 
-    // Create the call from the hex data.
-    return api.tx(this.callData);
+    // Try to parse the raw data as a call.
+    const call = api.registry.createType('Call', this.callData);
+
+    // Then create an extrinsic from this call.
+    return api.tx(call);
+
   }
 }
 
