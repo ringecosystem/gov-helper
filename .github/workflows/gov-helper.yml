@@ -1,4 +1,4 @@
-name: Runtime Upgrade Proposal
+name: Darwinia Polkadot-SDK Governance Helper
 
 on:
   issues:
@@ -11,7 +11,8 @@ jobs:
       is-gov-issue: ${{ steps.check-title.outputs.is-gov-issue }}
       has-valid-body: ${{ steps.check-body.outputs.has-valid-body }}
       wss-uri: ${{ steps.check-body.outputs.wss-uri }}
-      code-uri: ${{ steps.check-body.outputs.code-uri }}
+      proposal-type: ${{ steps.check-body.outputs.proposal-type }}
+      proposal-arg: ${{ steps.check-body.outputs.proposal-arg }}
       error-message: ${{ steps.check-body.outputs.error-message }}
     steps:
       - name: Check if Issue Title Starts with [GOV]
@@ -34,23 +35,39 @@ jobs:
           # Handle empty issue body
           if [[ -z "$ISSUE_BODY" ]]; then
             echo "has-valid-body=false" >> $GITHUB_OUTPUT
-            echo "error-message=Issue body is empty. Please provide WSS URI on the first line and code URI on the second line." >> $GITHUB_OUTPUT
+            echo "error-message=Issue body is empty. Please provide WSS URI, proposal type (runtime-upgrade or any), and proposal argument on separate lines." >> $GITHUB_OUTPUT
             exit 0
           fi
 
           WSS_URI=$(echo "$ISSUE_BODY" | sed -n '1p')
-          CODE_URI=$(echo "$ISSUE_BODY" | sed -n '2p')
+          PROPOSAL_TYPE=$(echo "$ISSUE_BODY" | sed -n '2p')
+          PROPOSAL_ARG=$(echo "$ISSUE_BODY" | sed -n '3p')
 
-          # Validate URIs (basic check)
-          if [[ -z "$WSS_URI" || -z "$CODE_URI" ]]; then
+          # Validate inputs
+          if [[ -z "$WSS_URI" ]]; then
             echo "has-valid-body=false" >> $GITHUB_OUTPUT
-            echo "error-message=Invalid format. Issue must contain WSS URI on first line and code URI on second line." >> $GITHUB_OUTPUT
+            echo "error-message=WSS URI is missing. Please provide a valid WSS URI on the first line." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Instead of strictly validating specific proposal types, check if it's not empty
+          # This allows the script to define and handle more proposal types
+          if [[ -z "$PROPOSAL_TYPE" ]]; then
+            echo "has-valid-body=false" >> $GITHUB_OUTPUT
+            echo "error-message=Proposal type is missing. Please specify a valid proposal type on the second line." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ -z "$PROPOSAL_ARG" ]]; then
+            echo "has-valid-body=false" >> $GITHUB_OUTPUT
+            echo "error-message=Proposal argument is missing. Please provide the required argument for the specified proposal type." >> $GITHUB_OUTPUT
             exit 0
           fi
 
           echo "has-valid-body=true" >> $GITHUB_OUTPUT
           echo "wss-uri=${WSS_URI}" >> $GITHUB_OUTPUT
-          echo "code-uri=${CODE_URI}" >> $GITHUB_OUTPUT
+          echo "proposal-type=${PROPOSAL_TYPE}" >> $GITHUB_OUTPUT
+          echo "proposal-arg=${PROPOSAL_ARG}" >> $GITHUB_OUTPUT
 
   check-author:
     needs: check-issue
@@ -76,7 +93,7 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "Sorry, only authorized team members can create runtime upgrade proposals."
+          body: "Sorry, only authorized team members can create governance proposals."
 
       - name: Add Confused Reaction to Unauthorized Issue
         if: steps.check-author.outputs.authorized == 'false'
@@ -102,7 +119,7 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "Processing runtime upgrade proposal..."
+          body: "Processing governance proposal..."
 
       - name: Add Positive Reactions to Authorized Issue
         if: steps.check-author.outputs.authorized == 'true'
@@ -132,15 +149,22 @@ jobs:
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            ## Runtime Upgrade Proposal Failed
+            ## Governance Proposal Failed
 
             Error: ${{ needs.check-issue.outputs.error-message }}
 
             Please fix the issue and try again.
 
+            Issue format should be:
+            ```
+            <WSS_URI>
+            <PROPOSAL_TYPE>  # Either 'runtime-upgrade' or 'any'
+            <PROPOSAL_ARG>   # Code URI for runtime-upgrade, Call data for any
+            ```
+
             Status: ❌ Failed
 
-  process-upgrade-proposal:
+  process-proposal:
     needs: [check-issue, check-author]
     if: >
       needs.check-issue.outputs.is-gov-issue == 'true' &&
@@ -168,13 +192,13 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
-      - name: Run upgrade proposal script
+      - name: Run governance proposal script
         id: run-script
         env:
           GOV_PROXY_KEY: ${{ secrets.GOV_PROXY_KEY }}
         run: |
           set -o pipefail
-          OUTPUT=$(yarn build && yarn start "${{ needs.check-issue.outputs.wss-uri }}" "${{ needs.check-issue.outputs.code-uri }}" 2>&1) || {
+          OUTPUT=$(yarn build && yarn start "${{ needs.check-issue.outputs.wss-uri }}" "${{ needs.check-issue.outputs.proposal-type }}" "${{ needs.check-issue.outputs.proposal-arg }}" 2>&1) || {
             EXIT_CODE=$?
             echo "exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
             echo "script-output<<EOF" >> $GITHUB_OUTPUT
@@ -192,7 +216,9 @@ jobs:
         with:
           issue-number: ${{ github.event.issue.number }}
           body: |
-            ## Runtime Upgrade Proposal Results
+            ## Governance Proposal Results
+
+            Proposal Type: **${{ needs.check-issue.outputs.proposal-type }}**
 
             ```
             ${{ steps.run-script.outputs.script-output || 'Script execution failed. See workflow logs for details.' }}
@@ -205,4 +231,4 @@ jobs:
         uses: peter-evans/close-issue@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          comment: "Runtime upgrade proposal has been successfully processed. This issue is now closed."
+          comment: "Governance proposal has been successfully processed. This issue is now closed."
