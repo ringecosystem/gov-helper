@@ -120,7 +120,7 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    console.log(`Processing governance proposal for: ${proposalType}`);
+    console.log(`processing governance proposal for: ${proposalType}`);
 
     await executeGovernanceWorkflow(api, pair, callGenerator, wssUri);
   } finally {
