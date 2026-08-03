@@ -79,7 +79,7 @@ jobs:
       - name: Check Issue Author
         id: check-author
         run: |
-          AUTHORIZED_AUTHORS=("aurexav" "boundless-forest" "hackfisher")
+          AUTHORIZED_AUTHORS=("acgxv" "boundless-forest" "hackfisher")
           ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
 
           if [[ " ${AUTHORIZED_AUTHORS[*]} " =~ " ${ISSUE_AUTHOR} " ]]; then
