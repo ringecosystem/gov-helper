@@ -196,9 +196,12 @@ jobs:
         id: run-script
         env:
           GOV_PROXY_KEY: ${{ secrets.GOV_PROXY_KEY }}
+          WSS_URI: ${{ needs.check-issue.outputs.wss-uri }}
+          PROPOSAL_TYPE: ${{ needs.check-issue.outputs.proposal-type }}
+          PROPOSAL_ARG: ${{ needs.check-issue.outputs.proposal-arg }}
         run: |
           set -o pipefail
-          OUTPUT=$(yarn build && yarn start "${{ needs.check-issue.outputs.wss-uri }}" "${{ needs.check-issue.outputs.proposal-type }}" "${{ needs.check-issue.outputs.proposal-arg }}" 2>&1) || {
+          OUTPUT=$(yarn build && yarn start "$WSS_URI" "$PROPOSAL_TYPE" "$PROPOSAL_ARG" 2>&1) || {
             EXIT_CODE=$?
             echo "exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
             echo "script-output<<EOF" >> $GITHUB_OUTPUT
