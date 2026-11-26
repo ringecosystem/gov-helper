@@ -6,6 +6,7 @@ on:
 
 jobs:
   check-issue:
+    permissions: {}
     runs-on: ubuntu-latest
     outputs:
       is-gov-issue: ${{ steps.check-title.outputs.is-gov-issue }}
@@ -70,6 +71,8 @@ jobs:
           echo "proposal-arg=${PROPOSAL_ARG}" >> $GITHUB_OUTPUT
 
   check-author:
+    permissions:
+      issues: write
     needs: check-issue
     if: needs.check-issue.outputs.is-gov-issue == 'true'
     runs-on: ubuntu-latest
@@ -165,6 +168,9 @@ jobs:
             Status: ❌ Failed
 
   process-proposal:
+    permissions:
+      contents: read
+      issues: write
     needs: [check-issue, check-author]
     if: >
       needs.check-issue.outputs.is-gov-issue == 'true' &&
@@ -196,9 +202,12 @@ jobs:
         id: run-script
         env:
           GOV_PROXY_KEY: ${{ secrets.GOV_PROXY_KEY }}
+          WSS_URI: ${{ needs.check-issue.outputs.wss-uri }}
+          PROPOSAL_TYPE: ${{ needs.check-issue.outputs.proposal-type }}
+          PROPOSAL_ARG: ${{ needs.check-issue.outputs.proposal-arg }}
         run: |
           set -o pipefail
-          OUTPUT=$(yarn build && yarn start "${{ needs.check-issue.outputs.wss-uri }}" "${{ needs.check-issue.outputs.proposal-type }}" "${{ needs.check-issue.outputs.proposal-arg }}" 2>&1) || {
+          OUTPUT=$(yarn build && yarn start "$WSS_URI" "$PROPOSAL_TYPE" "$PROPOSAL_ARG" 2>&1) || {
             EXIT_CODE=$?
             echo "exit-code=${EXIT_CODE}" >> $GITHUB_OUTPUT
             echo "script-output<<EOF" >> $GITHUB_OUTPUT
